@@ -1,10 +1,18 @@
+<<<<<<< HEAD
 # Source https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/tensorboard-controller/Dockerfile
+=======
+# Source https://github.com/canonical/kubeflow-notebooks/blob/v1.11.1-ambient/components/tensorboard-controller/Dockerfile
+>>>>>>> 31d4d96 (chore(tensorboard-controller): update to 1.11.1-ambient (#375))
 name: tensorboard-controller
 summary: An image for tensorboard controller
 description: |
   This image is used as part of the Charmed Kubeflow product. The controller needs 
   for providing the measurements and visualizations needed during the machine learning workflow.
+<<<<<<< HEAD
 version: "1.10.0"
+=======
+version: 1.11.1-ambient
+>>>>>>> 31d4d96 (chore(tensorboard-controller): update to 1.11.1-ambient (#375))
 license: Apache-2.0
 base: ubuntu@22.04
 services:
@@ -30,7 +38,11 @@ parts:
     plugin: go
     source: https://github.com/kubeflow/kubeflow
     source-type: git
+<<<<<<< HEAD
     source-tag: v1.10.0
+=======
+    source-tag: v1.11.1-ambient
+>>>>>>> 31d4d96 (chore(tensorboard-controller): update to 1.11.1-ambient (#375))
     source-subdir: components/tensorboard-controller
     build-snaps:
       - go/1.21/stable

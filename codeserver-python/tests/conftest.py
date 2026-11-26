@@ -8,8 +8,9 @@ import pytest
 from charmed_kubeflow_chisme.rock import CheckRock
 
 
-@pytest.fixture()
-def rock_env():
+@pytest.fixture(scope="session")
+def rock_container():
+    """Run the rock once for the whole test session, then remove it."""
     check_rock = CheckRock("rockcraft.yaml")
     rock_image = check_rock.get_name()
     rock_version = check_rock.get_version()
@@ -18,12 +19,10 @@ def rock_env():
     container_id = subprocess.run(
         ["docker", "run", "-d", "-p", "8888:8888", LOCAL_ROCK_IMAGE],
         stdout=subprocess.PIPE,
-    ).stdout.decode("utf-8")
-    container_id = container_id[0:12]
+        text=True,
+        check=True,
+    ).stdout.strip()
 
-    yield container_id, check_rock
+    yield check_rock, container_id
 
-    try:
-        subprocess.run(["docker", "rm", container_id, "--force"])
-    except Exception:
-        pass
+    subprocess.run(["docker", "rm", "--force", container_id])

@@ -1,26 +1,26 @@
-# Copyright 2023 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
-#
-#
 import subprocess
 
 import pytest
 
 
-@pytest.mark.abort_on_fail
-def test_rock(rock_env):
-    """Test rock."""
-    rock_services = rock_env[1].get_services()
+def test_pebble_services(rock_container):
+    """Test the codeserver-jupyter service."""
+    rock_services = rock_container[0].get_services()
 
     # verify rock service
     assert rock_services["codeserver-jupyter"]
     assert rock_services["codeserver-jupyter"]["startup"] == "enabled"
 
-    # verify that artifacts are in correct locations
+
+@pytest.mark.parametrize(
+    "path", ["/usr/bin/code-server", "/opt/conda/bin/jupyter"]
+)
+def test_artifacts(rock_container, path):
+    """Test that an artifact is in its correct location."""
+    # -L follows symlinks, so a dangling link fails too
     subprocess.run(
-        ["docker", "exec", rock_env[0], "ls", "-ls", "/usr/bin/code-server"], check=True
-    )
-    subprocess.run(
-        ["docker", "exec", rock_env[0], "ls", "-ls", "/opt/conda/bin/jupyter"],
+        ["docker", "exec", rock_container[1], "ls", "-L", path],
         check=True,
     )

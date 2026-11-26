@@ -35,7 +35,8 @@ parts:
     override-build: |
       # The `--break-system-packages` option is required since we are installing packages system-wide
       # See https://peps.python.org/pep-0668/ for more information
-      python3 -m pip install setuptools wheel --break-system-packages
+      # Use the build environment's Python for both installing tools and building the wheel.
+      /usr/bin/python3 -m pip install setuptools wheel --break-system-packages
       # Create a directory that holds the src of the backend copied
       # from the CRAFT_PART_SRC directory to avoid bringing files that
       # could affect the build of the backend wheel.
@@ -44,7 +45,7 @@ parts:
       # This is replicated in other steps for the frontend.
       mkdir $CRAFT_STAGE/backend-src && cd $CRAFT_STAGE/backend-src
       cp -r $CRAFT_PART_SRC/components/crud-web-apps/common/backend/* $CRAFT_STAGE/backend-src/
-      python3 setup.py bdist_wheel
+      /usr/bin/python3 setup.py bdist_wheel
 
   frontend-lib:
     plugin: nil
@@ -119,6 +120,7 @@ parts:
     override-build: |
       # The `--break-system-packages` option is required since we are installing packages system-wide
       # See https://peps.python.org/pep-0668/ for more information
+      # Use the build environment's Python; staged Python does not include pip.
       cd $CRAFT_STAGE/backend-src/ && /usr/bin/python3 -m pip install . --break-system-packages
 
       # Promote the packages we've installed from the local env to the primed image

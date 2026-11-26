@@ -12,7 +12,7 @@ description: |
   automatically activated.
 version: 1.11.1
 license: Apache-2.0
-base: ubuntu@22.04
+base: ubuntu@26.04
 run-user: _daemon_
 
 services:
@@ -106,7 +106,9 @@ parts:
       - git
       - gnupg
       - gnupg2
-      - locales
+      # NOTE: `locales` is omitted: on 26.04 its postinst fails in the overlay
+      #       (/etc/default/locale already exists); locales are provided by the
+      #       `generate-locale` part instead
       - lsb-release
       - nano
       - software-properties-common

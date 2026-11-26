@@ -168,8 +168,6 @@ parts:
 
       # install - requirements.txt
       cp ${CRAFT_PART_SRC}/components/example-notebook-servers/codeserver-python/requirements.txt /tmp/requirements.txt
-      # NOTE: upstream pins kfp==2.16.1, but we ship kfp 2.18.0
-      sed -i 's/^kfp==2\.16\.1$/kfp==2.18.0/' /tmp/requirements.txt
       PIP_NO_CACHE_DIR=off "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
       rm -f /tmp/requirements.txt
 

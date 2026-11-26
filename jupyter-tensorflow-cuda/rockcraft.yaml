@@ -4,8 +4,8 @@
 #
 # TensorFlow is NOT pip-installed here: it is NVIDIA's prebuilt CUDA 12.8 build
 # (TF 2.17.0+nv25.2) from nvcr.io/nvidia/tensorflow:25.02-tf2-py3. To let it share the base
-# conda env, that env is pinned to numpy 1.26. The rock base is ubuntu@24.04 to match the
-# image's glibc and cp312 ABI.
+# conda env, that env is pinned to numpy 1.26. The NGC image is built on ubuntu 24.04; the rock
+# base is ubuntu@26.04, whose newer glibc stays backward compatible. The cp312 ABI comes from conda.
 name: jupyter-tensorflow-cuda
 summary: An image for using Jupyter & Tensorflow on GPUs
 description: |
@@ -18,7 +18,7 @@ description: |
   nvcr.io/nvidia/tensorflow:25.02-tf2-py3), installed in that same environment.
 version: "1.11.1"
 license: Apache-2.0
-base: ubuntu@24.04
+base: ubuntu@26.04
 run-user: _daemon_
 
 environment:
@@ -115,7 +115,9 @@ parts:
       - git
       - gnupg
       - gnupg2
-      - locales
+      # NOTE: `locales` is omitted: on 26.04 its postinst fails in the overlay
+      #       (/etc/default/locale already exists); locales are provided by the
+      #       `generate-locale` part instead
       - lsb-release
       - nano
       - software-properties-common

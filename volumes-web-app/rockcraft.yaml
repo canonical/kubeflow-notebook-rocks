@@ -1,11 +1,11 @@
-# Based on https://github.com/kubeflow/notebooks/blob/v1.11.0-rc.1/components/crud-web-apps/volumes/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/crud-web-apps/volumes/Dockerfile
 name: volumes-web-app
 summary: Volumes Web App
 description: |
   This web app is responsible for allowing the user to manipulate PVCs in their Kubeflow
   cluster. To achieve this it provides a user friendly way to handle the lifecycle of PVC
   objects.
-version: 1.11.0-rc.1
+version: 1.11.1
 license: Apache-2.0
 base: ubuntu@24.04
 platforms:
@@ -26,7 +26,7 @@ parts:
     plugin: nil
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0-rc.1
+    source-tag: v1.11.1
     source-depth: 1
     build-packages:
       - python3-venv
@@ -35,7 +35,8 @@ parts:
     override-build: |
       # The `--break-system-packages` option is required since we are installing packages system-wide
       # See https://peps.python.org/pep-0668/ for more information
-      python3 -m pip install setuptools wheel --break-system-packages
+      # Use the build environment's Python for both installing tools and building the wheel.
+      /usr/bin/python3 -m pip install setuptools wheel --break-system-packages
       # Create a directory that holds the src of the backend copied
       # from the CRAFT_PART_SRC directory to avoid bringing files that
       # could affect the build of the backend wheel.
@@ -44,13 +45,13 @@ parts:
       # This is replicated in other steps for the frontend.
       mkdir $CRAFT_STAGE/backend-src && cd $CRAFT_STAGE/backend-src
       cp -r $CRAFT_PART_SRC/components/crud-web-apps/common/backend/* $CRAFT_STAGE/backend-src/
-      python3 setup.py bdist_wheel
+      /usr/bin/python3 setup.py bdist_wheel
 
   frontend-lib:
     plugin: nil
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0-rc.1
+    source-tag: v1.11.1
     source-depth: 1
     build-snaps:
       - node/24/stable
@@ -72,7 +73,7 @@ parts:
     plugin: nil
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0-rc.1
+    source-tag: v1.11.1
     source-depth: 1
     build-snaps:
       - node/24/stable
@@ -98,7 +99,7 @@ parts:
     plugin: python
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0-rc.1
+    source-tag: v1.11.1
     source-depth: 1
     python-requirements:
       - components/crud-web-apps/volumes/backend/requirements.txt
@@ -110,7 +111,7 @@ parts:
     plugin: nil
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0-rc.1
+    source-tag: v1.11.1
     source-depth: 1
     build-packages:
       - python3-venv
@@ -119,7 +120,8 @@ parts:
     override-build: |
       # The `--break-system-packages` option is required since we are installing packages system-wide
       # See https://peps.python.org/pep-0668/ for more information
-      cd $CRAFT_STAGE/backend-src/ && pip install . --break-system-packages
+      # Use the build environment's Python; staged Python does not include pip.
+      cd $CRAFT_STAGE/backend-src/ && /usr/bin/python3 -m pip install . --break-system-packages
 
       # Promote the packages we've installed from the local env to the primed image
       mkdir -p $CRAFT_PART_INSTALL/usr/local/lib/python3.12/dist-packages

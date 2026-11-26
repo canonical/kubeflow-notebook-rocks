@@ -1,7 +1,6 @@
-# Based on the following Dockerfiles:
-# https://github.com/kubeflow/notebooks/blob/v1.11.0-rc.0/components/example-notebook-servers/base/Dockerfile
-# https://github.com/kubeflow/notebooks/blob/v1.11.0-rc.0/components/example-notebook-servers/codeserver/Dockerfile
-# https://github.com/kubeflow/notebooks/blob/v1.11.0-rc.0/components/example-notebook-servers/codeserver-python/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/base/Dockerfile
+# https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/codeserver/Dockerfile
+# https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/codeserver-python/Dockerfile
 name: codeserver-python
 summary: An image for using Codeserver & Jupyter on CPUs
 description: |
@@ -11,7 +10,7 @@ description: |
 
   Both PyTorch and Jupyter are installed in a Conda environment, which is
   automatically activated.
-version: 1.11.0-rc.0
+version: 1.11.1
 license: Apache-2.0
 base: ubuntu@22.04
 run-user: _daemon_
@@ -49,7 +48,7 @@ parts:
   kubectl:
     plugin: nil
     stage-snaps:
-      - kubectl/1.31/stable
+      - kubectl/1.35/stable
     organize:
       kubectl: bin/kubectl
     stage:
@@ -74,7 +73,7 @@ parts:
     plugin: nil
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0-rc.0
+    source-tag: v1.11.1
     build-packages:
       - lsb-release
       - wget
@@ -109,6 +108,7 @@ parts:
       - lsb-release
       - nano
       - software-properties-common
+      - tmux
       - tzdata
       - unzip
       - vim

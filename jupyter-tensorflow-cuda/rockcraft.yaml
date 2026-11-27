@@ -1,12 +1,11 @@
-# Based on the following Dockerfiles:
-# https://github.com/kubeflow/notebooks/blob/v1.11.0/components/example-notebook-servers/base/Dockerfile
-# https://github.com/kubeflow/notebooks/blob/v1.11.0/components/example-notebook-servers/jupyter/Dockerfile
-# https://github.com/kubeflow/notebooks/blob/v1.11.0/components/example-notebook-servers/jupyter-tensorflow-cuda/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/base/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter-tensorflow-cuda/Dockerfile
 #
 # TensorFlow is NOT pip-installed here: it is NVIDIA's prebuilt CUDA 12.8 build
 # (TF 2.17.0+nv25.2) from nvcr.io/nvidia/tensorflow:25.02-tf2-py3. To let it share the base
-# conda env, that env is pinned to numpy 1.26. The rock base is ubuntu@24.04 to match the
-# image's glibc and cp312 ABI.
+# conda env, that env is pinned to numpy 1.26. The NGC image is built on ubuntu 24.04; the rock
+# base is ubuntu@26.04, whose newer glibc stays backward compatible. The cp312 ABI comes from conda.
 name: jupyter-tensorflow-cuda
 summary: An image for using Jupyter & Tensorflow on GPUs
 description: |
@@ -17,9 +16,9 @@ description: |
   Jupyter and the scientific Python stack run in a Conda environment (auto
   activated). TensorFlow is NVIDIA's CUDA 12.8 build (from the NGC image
   nvcr.io/nvidia/tensorflow:25.02-tf2-py3), installed in that same environment.
-version: "1.11.0"
+version: "1.11.1"
 license: Apache-2.0
-base: ubuntu@24.04
+base: ubuntu@26.04
 run-user: _daemon_
 
 environment:
@@ -89,7 +88,7 @@ parts:
     plugin: nil
     source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.11.0
+    source-tag: v1.11.1
     build-packages:
       - lsb-release
       - wget
@@ -116,7 +115,9 @@ parts:
       - git
       - gnupg
       - gnupg2
-      - locales
+      # NOTE: `locales` is omitted: on 26.04 its postinst fails in the overlay
+      #       (/etc/default/locale already exists); locales are provided by the
+      #       `generate-locale` part instead
       - lsb-release
       - nano
       - software-properties-common
@@ -214,7 +215,6 @@ parts:
     after: [conda-jupyter]
     build-packages:
       - skopeo
-      - curl
     build-environment:
       # Tag 25.02-tf2-py3, linux/amd64 manifest (not the index); skopeo rejects tag@digest refs.
       - NGC_TF_IMAGE: "nvcr.io/nvidia/tensorflow"
@@ -222,23 +222,46 @@ parts:
       - CONDA_DIR: "/opt/conda"
       - PY_MM: "3.12"
       - CUDA_DIR: "cuda-12.8"
-      # OCI-aware layer unpacker, pinned + checksum-verified
-      - UMOCI_VERSION: "0.6.0"
-      - UMOCI_SHA256: "b51c267ec394499e42c6fde47f240b7b7dba57ea49df0b5acd304378b82a3b71"
     override-build: |
       set -eux
 
-      # Pull NVIDIA's prebuilt TF image into an OCI layout (no Docker daemon).
-      workdir=$(mktemp -d)
-      skopeo copy "docker://${NGC_TF_IMAGE}@sha256:${NGC_TF_IMAGE_SHA256}" "oci:${workdir}/oci:latest"
+      # Pull NVIDIA's prebuilt TF image (no Docker daemon), under the part's build dir rather than /tmp.
+      workdir=$(mktemp -d -p "${CRAFT_PART_BUILD}")
+      skopeo copy "docker://${NGC_TF_IMAGE}@sha256:${NGC_TF_IMAGE_SHA256}" "dir:${workdir}/img"
 
-      # Flatten the layers into a rootfs (applies whiteouts) with a pinned umoci.
-      curl -fsSL -o "${workdir}/umoci" \
-        "https://github.com/opencontainers/umoci/releases/download/v${UMOCI_VERSION}/umoci.linux.amd64"
-      echo "${UMOCI_SHA256} ${workdir}/umoci" | sha256sum -c -
-      chmod +x "${workdir}/umoci"
-      "${workdir}/umoci" unpack --rootless --image "${workdir}/oci:latest" "${workdir}/bundle"
-      root="${workdir}/bundle/rootfs"
+      # Apply the image layers in order, extracting only the paths this part ships (the full
+      # rootfs does not fit on the build disk) and deleting each layer blob once applied.
+      # Whiteouts (.wh.<name> and opaque dirs) are honoured before each layer's files are extracted.
+      # A digest may appear more than once (e.g. the shared empty layer), so a blob is only
+      # deleted after its last occurrence in the layer list.
+      root="${workdir}/rootfs"
+      mkdir -p "${root}"
+      wanted="^(\./)?(usr/local/${CUDA_DIR}(/|$)|usr/(local/)?lib/python${PY_MM}/(dist|site)-packages/tensorflow([-.][^/]*)?(/|$)|usr/lib/x86_64-linux-gnu/(libcudnn|libnvinfer|libnvonnxparser|libcutensor|libnccl)|etc/alternatives/(libcudnn|libcutensor))"
+      layers=$("${CONDA_DIR}/bin/python" -c 'import json, sys; print("\n".join(l["digest"].split(":", 1)[1] for l in json.load(open(sys.argv[1]))["layers"]))' "${workdir}/img/manifest.json")
+      i=0
+      for digest in ${layers}; do
+        i=$((i + 1))
+        blob="${workdir}/img/${digest}"
+        tar -tf "${blob}" > "${workdir}/members"
+        grep -E '(^|/)\.wh\.' "${workdir}/members" > "${workdir}/whiteouts" || true
+        while read -r wh; do
+          wh="${wh#./}"
+          d=$(dirname "${wh}")
+          b=$(basename "${wh}")
+          if [ "${b}" = ".wh..wh..opq" ]; then
+            find "${root}/${d}" -mindepth 1 -delete 2>/dev/null || true
+          else
+            rm -rf "${root}/${d}/${b#.wh.}"
+          fi
+        done < "${workdir}/whiteouts"
+        grep -E "${wanted}" "${workdir}/members" | grep -vE '(^|/)\.wh\.' > "${workdir}/extract" || true
+        if [ -s "${workdir}/extract" ]; then
+          tar -xf "${blob}" -C "${root}" --no-same-owner --no-recursion --verbatim-files-from -T "${workdir}/extract"
+        fi
+        if ! echo "${layers}" | tail -n +$((i + 1)) | grep -qx "${digest}"; then
+          rm -f "${blob}"
+        fi
+      done
 
       # NVIDIA's TF goes into the BASE conda env (present at /opt/conda after conda-jupyter),
       # now a numpy 1.26 env so TF coexists with it in a single kernel.

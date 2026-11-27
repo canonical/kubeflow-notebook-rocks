@@ -1,7 +1,6 @@
-# Based on:
-# https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/base/Dockerfile
-# https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/jupyter/Dockerfile
-# https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/jupyter-scipy/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/base/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter-scipy/Dockerfile
 name: jupyter-scipy
 summary: An image for using Jupyter SciPy
 description: |
@@ -11,9 +10,9 @@ description: |
 
   Both SciPy and Jupyter are installed in Conda environment, which is
   automatically activated.
-version: 1.10.0
+version: 1.11.1
 license: Apache-2.0
-base: ubuntu@22.04
+base: ubuntu@26.04
 run-user: _daemon_
 services:
   jupyter:
@@ -37,8 +36,8 @@ services:
       LANGUAGE: en_US.UTF-8
       LC_ALL: en_US.UTF-8
       PATH: /opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      PYTHONPATH: /opt/conda/lib/python3.11/site-packages/
-    # Command source https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/jupyter/s6/services.d/jupyterlab/run
+      PYTHONPATH: /opt/conda/lib/python3.12/site-packages/
+    # Command source https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter/s6/services.d/jupyterlab/run
     command: bash -c '/opt/conda/bin/jupyter lab --notebook-dir=${HOME} --ip=0.0.0.0 --no-browser --allow-root --port=8888 --ServerApp.token="" --ServerApp.password="" --ServerApp.allow_origin="*" --ServerApp.allow_remote_access=True --ServerApp.base_url=${NB_PREFIX} --ServerApp.authenticate_prometheus=False'
     working-dir: /home/jovyan/
 platforms:
@@ -56,7 +55,7 @@ parts:
   kubectl:
     plugin: nil
     stage-snaps:
-      - kubectl/1.31/stable
+      - kubectl/1.35/stable
     organize:
       kubectl: bin/kubectl
     stage:
@@ -65,12 +64,13 @@ parts:
   nodejs:
     plugin: nil
     build-environment:
-      - NODE_MAJOR_VERSION: 20
+      - NODE_MAJOR_VERSION: 22
     override-build: |
       # Add Node.js repository and install
       export DEBIAN_FRONTEND=noninteractive
-      curl -sL "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key" | apt-key add -
-      echo "deb https://deb.nodesource.com/node_${NODE_MAJOR_VERSION}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+      mkdir -p /etc/apt/keyrings
+      curl -sL "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key" -o /etc/apt/keyrings/nodesource.asc
+      echo "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_${NODE_MAJOR_VERSION}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
       apt-get -yq update
       apt-get -yq install --no-install-recommends nodejs
       apt-get clean
@@ -95,19 +95,19 @@ parts:
 
   conda-jupyter:
     plugin: nil
-    source: https://github.com/kubeflow/kubeflow
+    source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.10.0
+    source-tag: v1.11.1
     build-packages:
       - lsb-release
       - wget
     build-environment:
-      - JUPYTERLAB_VERSION: "4.3.5"
-      - JUPYTER_VERSION: "7.3.2"
+      - JUPYTERLAB_VERSION: "4.5.7"
+      - JUPYTER_VERSION: "7.5.6"
       - MINIFORGE_ARCH: "x86_64"
-      - MINIFORGE_VERSION: "24.11.3-0"
-      - PIP_VERSION: "24.3.1"
-      - PYTHON_VERSION: "3.11.11"
+      - MINIFORGE_VERSION: "26.3.2-2"
+      - PIP_VERSION: "26.1.1"
+      - PYTHON_VERSION: "3.12.13"
       - HOME: "/home/jovyan"
       - HOME_TMP: /tmp_home/jovyan
       - NB_USER: jovyan
@@ -119,7 +119,6 @@ parts:
       - FEAST_VERSION: "0.49.0"  # Latest feast version we support https://github.com/canonical/feast-rocks/blob/main/feast-ui/rockcraft.yaml#L35
     # These were taken from the upstream base image. They *may not* all be required.
     overlay-packages:
-      - python3.11-distutils
       - apt-transport-https
       - bash
       - bzip2
@@ -132,6 +131,7 @@ parts:
       - lsb-release
       - nano
       - software-properties-common
+      - tmux
       - tzdata
       - unzip
       - vim
@@ -144,6 +144,8 @@ parts:
       - ffmpeg
     override-build: |
       set -xe
+      # Remove leftovers of previous builds in the build instance so the conda install starts clean
+      rm -rf "${CONDA_DIR}" "${HOME}"
       mkdir -p "${CONDA_DIR}" "${HOME}"
 
       # Download the miniforge installer
@@ -183,7 +185,7 @@ parts:
       "${CONDA_BIN}/conda" clean -a -f -y
 
       cp ${CRAFT_PART_SRC}/components/example-notebook-servers/jupyter/requirements.txt /tmp/requirements.txt
-      "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
+      PIP_NO_CACHE_DIR=off "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
       rm -f /tmp/requirements.txt
 
       # configure - jupyter
@@ -193,40 +195,43 @@ parts:
       # Install the jupyter-scipy requirements
       "${CONDA_BIN}/mamba" install -y -q \
         altair \
-        beautifulsoup4==4.13.3 \
-        bokeh==3.6.3 \
+        beautifulsoup4==4.14.3 \
+        bokeh==3.9.0 \
         bottleneck \
         brotli \
         cloudpickle \
-        dask==2024.12.1 \
+        dask==2026.3.0 \
         dill \
         h5py \
         ipympl \
-        matplotlib==3.10.0 \
+        matplotlib==3.10.9 \
         numba \
         numexpr \
-        numpy==1.26.4 \
+        numpy==2.4.6 \
         openblas==0.3.28 \
         openpyxl \
-        pandas==2.2.3 \
+        pandas==3.0.3 \
         patsy \
         protobuf \
-        pytables==3.10.2 \
-        scikit-image==0.25.1 \
-        scikit-learn==1.6.1 \
-        scipy==1.15.1 \
+        pytables==3.11.1 \
+        scikit-image==0.26.0 \
+        scikit-learn==1.8.0 \
+        scipy==1.17.1 \
         seaborn==0.13.2 \
-        sqlalchemy==2.0.38 \
+        sqlalchemy==2.0.50 \
         statsmodels \
         sympy \
         vincent \
-        xgboost==2.1.4 \
+        xgboost==3.2.0 \
         xlrd \
 
+      # Local deviation: with the new conda-forge stack the `brotli` package no longer brings the
+      # Python bindings, so install `brotli-python` explicitly to keep `import brotli` working
+      "${CONDA_BIN}/mamba" install -y -q brotli-python
       "${CONDA_BIN}/mamba" clean -a -f -y
 
       cp $CRAFT_PART_SRC/components/example-notebook-servers/jupyter-scipy/requirements.txt /tmp/requirements.txt
-      "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
+      PIP_NO_CACHE_DIR=off "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
       rm -f /tmp/requirements.txt
 
       # Install mlflow so we can use this with mlflow https://github.com/canonical/data-science-stack/issues/47#issuecomment-2004136344
@@ -279,6 +284,8 @@ parts:
     - NB_GID: 0
     - USERS_GID: 100
     overlay-script: |
+      # The ubuntu@26.04 base ships a default 'ubuntu' user with UID 1000; remove it so jovyan can take that UID
+      userdel -R ${CRAFT_OVERLAY} ubuntu || true
       # Create a user in the $CRAFT_OVERLAY chroot
       useradd -R ${CRAFT_OVERLAY} \
       --shell /bin/bash \

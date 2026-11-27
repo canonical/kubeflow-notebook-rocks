@@ -1,26 +1,66 @@
-#!/usr/bin/env python3
-# Copyright 2023 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
-#
-#
-import os
 import subprocess
 
-from charmed_kubeflow_chisme.rock import CheckRock
+import pytest
 
 
-def main():
-    """Test running container and imports."""
-    check_rock = CheckRock("rockcraft.yaml")
-    rock_image = check_rock.get_name()
-    rock_version = check_rock.get_version()
-    LOCAL_ROCK_IMAGE = f"{rock_image}:{rock_version}"
-    
-    print(f"Running command in {LOCAL_ROCK_IMAGE}")
-    script_command = ["bash", "-c", "export HOME=/home/jovyan && export PATH=/opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && PYTHONPATH=/opt/conda/lib/python3.11/site-packages/  python3.11 /home/jovyan/imports.py"]
-    pwd = os.getcwd()
-    output = subprocess.run(["docker", "run", "-v", f"{pwd}/tests/:/home/jovyan", LOCAL_ROCK_IMAGE, "exec", "pebble", "exec"] + script_command, stdout=subprocess.PIPE).stdout.decode('utf-8')
-    assert "PASSED" in output
-
-if __name__ == "__main__":
-    main()
+@pytest.mark.parametrize(
+    "module",
+    [
+        # Jupyter packages
+        "jupyterlab",
+        "notebook",
+        "ipykernel",
+        # SciPy ecosystem packages
+        "altair",
+        "bokeh",
+        "bottleneck",
+        "brotli",
+        "cloudpickle",
+        "dask",
+        "dill",
+        "h5py",
+        "ipympl",
+        "ipywidgets",
+        "jupyterlab_git",
+        "matplotlib",
+        "numba",
+        "numexpr",
+        "openpyxl",
+        "pandas",
+        "patsy",
+        "scipy",
+        "seaborn",
+        "sqlalchemy",
+        "statsmodels",
+        "sympy",
+        "tables",
+        "vincent",
+        "xlrd",
+        # Machine Learning & Data Science
+        "sklearn",
+        "mlflow",
+        "feast",
+        # NumPy linked against OpenBLAS
+        "numpy",
+        "scipy.linalg",
+    ],
+)
+def test_import(rock_container, module):
+    """Test that a Python module imports in the rock's conda env."""
+    subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-e",
+            "HOME=/home/jovyan",
+            "-e",
+            "PYTHONPATH=/opt/conda/lib/python3.11/site-packages/",
+            rock_container[1],
+            "/opt/conda/bin/python3",
+            "-c",
+            f"import {module}",
+        ],
+        check=True,
+    )

@@ -1,7 +1,6 @@
-# Based on the following Dockerfiles:
-# https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/base/Dockerfile
-# https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/jupyter/Dockerfile
-# https://github.com/kubeflow/kubeflow/blob/v1.10.0/components/example-notebook-servers/jupyter-tensorflow-full/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/base/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter/Dockerfile
+# Based on https://github.com/kubeflow/notebooks/blob/v1.11.1/components/example-notebook-servers/jupyter-tensorflow-full/Dockerfile
 name: jupyter-tensorflow-full
 summary: An image for using Jupyter & Tensorflow on CPUs
 description: |
@@ -11,9 +10,9 @@ description: |
 
   Both Tensorflow and Jupyter are installed in Conda environment, which is
   automatically activated.
-version: "1.10.0"
+version: "1.11.1"
 license: Apache-2.0
-base: ubuntu@22.04
+base: ubuntu@26.04
 run-user: _daemon_
 
 services:
@@ -32,7 +31,7 @@ services:
        LANGUAGE: "en_US.UTF-8"
        LC_ALL: "en_US.UTF-8"
        PATH: "/opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-       PYTHONPATH: "/opt/conda/lib/python3.11/site-packages/"
+       PYTHONPATH: "/opt/conda/lib/python3.12/site-packages/"
        JUPYTER_RUNTIME_DIR: "/tmp/jupyter_runtime"
 platforms:
   amd64:
@@ -49,7 +48,7 @@ parts:
   kubectl:
     plugin: nil
     stage-snaps:
-      - kubectl/1.31/stable
+      - kubectl/1.35/stable
     organize:
       kubectl: bin/kubectl
     stage:
@@ -72,29 +71,28 @@ parts:
 
   conda-jupyter:
     plugin: nil
-    source: https://github.com/kubeflow/kubeflow
+    source: https://github.com/kubeflow/notebooks
     source-type: git
-    source-tag: v1.10.0
+    source-tag: v1.11.1
     build-packages:
       - lsb-release
       - wget
     build-environment:
       - MINIFORGE_ARCH: "x86_64"
-      - MINIFORGE_VERSION: "24.11.3-0"
-      - PIP_VERSION: "24.3.1"
-      - PYTHON_VERSION: "3.11.11"
+      - MINIFORGE_VERSION: "26.3.2-2"
+      - PIP_VERSION: "26.1.1"
+      - PYTHON_VERSION: "3.12.13"
       - HOME: "/home/jovyan"
       - HOME_TMP: "/tmp_home/jovyan"
       - NB_USER: "jovyan"
       - NB_GID: "0"
       - CONDA_DIR: "/opt/conda"
       - CONDA_BIN: "/opt/conda/bin"
-      - JUPYTERLAB_VERSION: "4.3.5"
-      - JUPYTER_VERSION: "7.3.2"
+      - JUPYTERLAB_VERSION: "4.5.7"
+      - JUPYTER_VERSION: "7.5.6"
       - TENSORFLOW_VERSION: "2.17.1"
       - MAMBA_ROOT_PREFIX: "/opt/conda"
     overlay-packages:
-      - python3-distutils
       - apt-transport-https
       - bash
       - bzip2
@@ -103,10 +101,10 @@ parts:
       - git
       - gnupg
       - gnupg2
-      - locales
       - lsb-release
       - nano
       - software-properties-common
+      - tmux
       - tzdata
       - unzip
       - vim
@@ -135,13 +133,15 @@ parts:
       "${CONDA_BIN}/conda" config --system --set auto_update_conda false
       "${CONDA_BIN}/conda" config --system --set show_channel_urls true
 
-      echo "conda ${MINIFORGE_VERSION}" >> "${CONDA_DIR}/conda-meta/pinned"
+      # Miniforge tags carry a build suffix (e.g. 26.3.2-2) that the conda package version does not have
+      CONDA_VERSION="${MINIFORGE_VERSION%-*}"
+      echo "conda ${CONDA_VERSION}" >> "${CONDA_DIR}/conda-meta/pinned"
       echo "python ==${PYTHON_VERSION}" >> "${CONDA_DIR}/conda-meta/pinned"
 
       # Install the correct versions of python, conda, pip
       "${CONDA_BIN}/conda" install -y -q \
                           python="${PYTHON_VERSION}" \
-                          conda="${MINIFORGE_VERSION}" \
+                          conda="${CONDA_VERSION}" \
                           pip="${PIP_VERSION}"
       # Clean up
       "${CONDA_BIN}/conda" update -y -q --all
@@ -156,7 +156,7 @@ parts:
       "${CONDA_BIN}/conda" clean -a -f -y
 
       cp ${CRAFT_PART_SRC}/components/example-notebook-servers/jupyter/requirements.txt /tmp/jupyter-requirements.txt
-      "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/jupyter-requirements.txt
+      PIP_NO_CACHE_DIR=off "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/jupyter-requirements.txt
       rm -f /tmp/requirements.txt
 
       # configure - jupyter
@@ -173,23 +173,23 @@ parts:
 
       # Install the jupyter-tensorflow-full requirements
       "${CONDA_BIN}/mamba" install -y -q \
-        bokeh==3.6.3 \
-        cloudpickle==3.1.1 \
-        dill==0.3.9 \
-        ipympl==0.9.6 \
-        matplotlib==3.10.0 \
-        numpy==1.26.4 \
-        pandas==2.2.3 \
-        scikit-image==0.25.1 \
-        scikit-learn==1.6.1 \
-        scipy==1.15.1 \
+        bokeh==3.9.0 \
+        cloudpickle==3.1.2 \
+        dill==0.4.1 \
+        ipympl==0.10.0 \
+        matplotlib==3.10.9 \
+        numpy==2.4.6 \
+        pandas==3.0.3 \
+        scikit-image==0.26.0 \
+        scikit-learn==1.8.0 \
+        scipy==1.17.1 \
         seaborn==0.13.2 \
-        xgboost==2.1.4 \
+        xgboost==3.2.0 \
 
       "${CONDA_BIN}/mamba" clean -a -f -y
       
       cp $CRAFT_PART_SRC/components/example-notebook-servers/jupyter-tensorflow-full/requirements.txt /tmp/requirements.txt
-      "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
+      PIP_NO_CACHE_DIR=off "${CONDA_BIN}/pip" install --no-cache-dir -r /tmp/requirements.txt
       rm -f /tmp/requirements.txt
 
       # Create some directories for staging files
